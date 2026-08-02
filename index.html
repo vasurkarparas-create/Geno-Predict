@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="GenoPredict — Predict genetic disorder inheritance in offspring based on parental genotypes with Punnett Square, Pedigree Chart, and Gene Analysis visualizations.">
+    <title>GenoPredict — Genetic Disorder Prediction</title>
+    <script>
+        (function() {
+            const session = JSON.parse(localStorage.getItem('geno_user_session') || 'null');
+            if (!session || !session.isLoggedIn) {
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-glass: rgba(255, 255, 255, 0.05);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-1: #6366f1;
+            --accent-2: #8b5cf6;
+            --accent-3: #a78bfa;
+            --green: #10b981;
+            --green-bg: rgba(16, 185, 129, 0.15);
+            --yellow: #f59e0b;
+            --yellow-bg: rgba(245, 158, 11, 0.15);
+            --red: #ef4444;
+            --red-bg: rgba(239, 68, 68, 0.15);
+            --cyan: #06b6d4;
+            --purple: #9333ea;
+            
+            /* Gender Specific Colors */
+            --male-color: #3b82f6; 
+            --male-bg: rgba(59, 130, 246, 0.15);
+            --female-color: #ec4899;
+            --female-bg: rgba(236, 72, 153, 0.15);
+
+            --radius: 16px;
+            --radius-sm: 10px;
+            --radius-xs: 6px;
+            --shadow: 0 25px 50px rgba(0,0,0,0.5);
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary) url('assets/bg.png') no-repeat center center fixed;
+            background-size: cover;
+            background-blend-mode: overlay;
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ===== LAYOUT ===== */
+        .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* ===== HEADER ===== */
+        header { padding: 50px 0 30px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+        
+        .logo { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 12px; }
+        .logo-icon svg { 
+            animation: rotateDNA 8s infinite linear;
+            transform-style: preserve-3d;
+            filter: drop-shadow(0 0 15px rgba(14, 165, 233, 0.6));
+        }
+        @keyframes rotateDNA {
+            0% { transform: rotateY(0deg) scale(1); }
+            50% { transform: rotateY(180deg) scale(1.08); }
+            100% { transform: rotateY(360deg) scale(1); }
+        }
+        .logo h1 { 
+            font-size: 42px; 
+            font-weight: 800; 
+            color: var(--text-primary); 
+            letter-spacing: -0.5px; 
+        } 
+        
+        .tagline {
+            font-size: 16px; 
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 6px; 
+            background: linear-gradient(90deg, #06b6d4, #a78bfa, #f43f5e, #10b981);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: glowGradient 4s ease infinite alternate;
+            text-shadow: 0 0 25px rgba(99, 102, 241, 0.8);
+            margin-bottom: 24px;
+        }
+        @keyframes glowGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .symptom-chip {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: var(--transition);
+            color: var(--text-primary);
+        }
+        .symptom-chip:hover { border-color: var(--accent-1); background: rgba(99,102,241,0.15); }
+        .symptom-chip input { accent-color: var(--accent-1); cursor: pointer; }
+        
+        header p { color: var(--text-muted); font-size: 16px; max-width: 550px; margin: 0 auto; }
+
+        /* ===== STEPS ===== */
+        .steps-bar { display: flex; align-items: center; justify-content: center; gap: 0; margin: 36px auto 40px; max-width: 600px; }
+        .step-dot { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-glass); border: 2px solid var(--border-glass); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: var(--text-muted); transition: var(--transition); flex-shrink: 0; }
+        .step-dot.active { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); border-color: var(--accent-1); color: white; box-shadow: 0 0 20px rgba(99,102,241,0.4); }
+        .step-dot.done { background: var(--green); border-color: var(--green); color: white; }
+        .step-line { flex: 1; height: 2px; background: var(--border-glass); transition: var(--transition); max-width: 100px; }
+        .step-line.active { background: linear-gradient(90deg, var(--green), var(--accent-1)); }
+
+        /* ===== CARDS ===== */
+        .card { background: var(--bg-card); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border: 1px solid var(--border-glass); border-radius: var(--radius); padding: 36px; margin-bottom: 28px; box-shadow: var(--shadow); transition: var(--transition); animation: fadeInUp 0.6s ease-out both; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent-3); margin-bottom: 6px; }
+        .card-heading { font-size: 24px; font-weight: 800; margin-bottom: 24px; color: var(--text-primary); }
+
+        /* ===== DISORDER GRID ===== */
+        .category-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-glass); }
+        .disorder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+        .disorder-btn { background: var(--bg-glass); border: 1.5px solid var(--border-glass); border-radius: var(--radius-sm); padding: 20px 16px; cursor: pointer; text-align: center; transition: var(--transition); color: var(--text-primary); position: relative; overflow: hidden; }
+        .disorder-btn:hover { border-color: rgba(99,102,241,0.4); transform: translateY(-3px); background: rgba(255,255,255,0.08); }
+        .disorder-btn.selected { border-color: var(--accent-1); background: rgba(99,102,241,0.15); box-shadow: 0 0 24px rgba(99,102,241,0.25); }
+        .disorder-btn.selected::after { content: '✓'; position: absolute; top: 8px; right: 10px; font-size: 14px; color: var(--accent-1); font-weight: 800; }
+        .disorder-icon { font-size: 32px; margin-bottom: 10px; display: block; }
+        .disorder-name { font-size: 14px; font-weight: 700; position: relative; z-index: 1; margin-bottom: 8px; }
+        .info-link { font-size: 11px; font-weight: 600; color: var(--cyan); text-decoration: none; padding: 4px 8px; border-radius: 4px; background: rgba(6,182,212,0.1); display: inline-block; transition: 0.2s; }
+        .info-link:hover { background: rgba(6,182,212,0.3); color: #fff; }
+
+        /* ===== PARENT INPUTS ===== */
+        .parents-section { display: none; }
+        .parents-section.visible { display: block; animation: fadeInUp 0.5s ease-out both; }
+        
+        .parents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 640px) { .parents-grid { grid-template-columns: 1fr; } }
+        
+        .parent-card { background: var(--bg-glass); border: 1.5px solid var(--border-glass); border-radius: var(--radius-sm); padding: 28px 24px; text-align: center; transition: var(--transition); position: relative; overflow: hidden; }
+        .parent-card.male { border-color: rgba(59,130,246,0.3); background: linear-gradient(180deg, rgba(59,130,246,0.05), transparent); }
+        .parent-card.female { border-color: rgba(236,72,153,0.3); background: linear-gradient(180deg, rgba(236,72,153,0.05), transparent); }
+        
+        .gender-symbol { font-size: 42px; margin-bottom: 12px; font-weight: 900; }
+        .parent-card.male .gender-symbol { color: var(--male-color); text-shadow: 0 0 15px var(--male-color); }
+        .parent-card.female .gender-symbol { color: var(--female-color); text-shadow: 0 0 15px var(--female-color); }
+        
+        .parent-label { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--text-primary); }
+        
+        .genotype-options { display: flex; flex-direction: column; gap: 10px; }
+        .genotype-btn { background: var(--bg-glass); border: 1.5px solid var(--border-glass); border-radius: var(--radius-xs); padding: 12px 16px; cursor: pointer; transition: var(--transition); color: var(--text-secondary); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .parent-card.male .genotype-btn:hover { border-color: var(--male-color); color: #fff; background: var(--male-bg); }
+        .parent-card.male .genotype-btn.selected { border-color: var(--male-color); background: var(--male-bg); color: #fff; box-shadow: 0 0 15px rgba(59,130,246,0.3); }
+        .parent-card.female .genotype-btn:hover { border-color: var(--female-color); color: #fff; background: var(--female-bg); }
+        .parent-card.female .genotype-btn.selected { border-color: var(--female-color); background: var(--female-bg); color: #fff; box-shadow: 0 0 15px rgba(236,72,153,0.3); }
+
+        .genotype-btn .geno-code { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px; min-width: 28px; }
+        .parent-card.male .geno-code { color: var(--male-color); }
+        .parent-card.female .geno-code { color: var(--female-color); }
+
+        /* Chromosomal Form Inputs */
+        .chromo-forms { display: none; max-width: 600px; margin: 0 auto; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 24px; }
+        .chromo-form { display: none; flex-direction: column; gap: 16px; }
+        .chromo-form.active { display: flex; animation: fadeInUp 0.4s ease-out; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+        .input-group label { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+        .input-group input, .input-group select { background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); padding: 12px 16px; border-radius: var(--radius-xs); color: #fff; font-size: 15px; font-family: inherit; transition: var(--transition); }
+        .input-group input:focus, .input-group select:focus { outline: none; border-color: var(--accent-1); box-shadow: 0 0 10px rgba(99,102,241,0.3); }
+        .cri-du-chat-msg { text-align: center; color: var(--yellow); font-weight: 600; padding: 20px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); border-radius: var(--radius-xs); }
+
+        /* ===== PREDICT BUTTON ===== */
+        .predict-wrapper { text-align: center; margin: 32px 0; display: none; }
+        .predict-wrapper.visible { display: block; animation: fadeInUp 0.4s ease-out; }
+        .predict-btn { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: white; border: none; border-radius: 60px; padding: 18px 52px; font-size: 18px; font-weight: 800; cursor: pointer; transition: var(--transition); box-shadow: 0 8px 32px rgba(99,102,241,0.4); text-transform: uppercase; letter-spacing: 1px; }
+        .predict-btn:hover:not(:disabled) { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 40px rgba(99,102,241,0.6); }
+        .predict-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); box-shadow: none; }
+
+        /* ===== RESULTS (STEP 3 & 4) ===== */
+        .results-section { display: none; margin-bottom: 20px; }
+        .results-section.visible { display: block; animation: fadeInUp 0.6s ease-out both; }
+        .step4-section { display: none; margin-bottom: 60px; }
+        .step4-section.visible { display: block; animation: fadeInUp 0.6s ease-out both; }
+
+        /* Tabs */
+        .result-tabs { display: flex; gap: 8px; margin-bottom: 28px; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 12px; border: 1px solid var(--border-glass); flex-wrap: wrap; }
+        .result-tab { flex: 1; min-width: 140px; padding: 14px 18px; border: none; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 14px; font-weight: 700; cursor: pointer; transition: var(--transition); }
+        .result-tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .result-tab.active { background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: white; box-shadow: 0 4px 16px rgba(99,102,241,0.4); }
+        .tab-content { display: none; animation: fadeInUp 0.4s ease-out; }
+        .tab-content.active { display: block; }
+
+        /* Genetic Symbol Chart (Legend) */
+        .symbol-legend { display: flex; flex-wrap: wrap; gap: 20px; padding: 16px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); margin-bottom: 24px; align-items: center; justify-content: center; }
+        .symbol-item { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+        .sym-shape { width: 24px; height: 24px; border: 2px solid #fff; }
+        .sym-male { border-radius: 4px; border-color: var(--male-color); }
+        .sym-female { border-radius: 50%; border-color: var(--female-color); }
+        .sym-affected { background: var(--text-primary) !important; border-color: var(--text-primary) !important; }
+        .sym-carrier { background: linear-gradient(90deg, var(--text-primary) 50%, transparent 50%); }
+        .sym-male.sym-carrier { background: linear-gradient(90deg, var(--male-color) 50%, transparent 50%); }
+        .sym-female.sym-carrier { background: linear-gradient(90deg, var(--female-color) 50%, transparent 50%); }
+
+        /* Punnett */
+        .punnett-grid { display: inline-grid; gap: 4px; background: rgba(255,255,255,0.05); padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); }
+        .punnett-cell { width: 100px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--radius-xs); font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; transition: var(--transition); }
+        .punnett-header { background: rgba(99,102,241,0.15); color: var(--accent-3); font-size: 16px; }
+        .punnett-corner { background: transparent; color: var(--text-muted); font-size: 14px; }
+        .punnett-normal { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+        .punnett-carrier { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+        .punnett-affected { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+        .punnett-phenotype { font-size: 11px; font-family: 'Inter', sans-serif; font-weight: 600; opacity: 0.9; margin-top: 4px; }
+
+        /* Pedigree Chart */
+        .pedigree-chart { padding: 20px 0; overflow-x: auto; text-align: center; }
+        .ped-parents { display: flex; justify-content: center; align-items: flex-start; gap: 60px; position: relative; margin-bottom: 30px; }
+        .ped-figure { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; z-index: 2; }
+        .ped-shape { width: 44px; height: 44px; border: 3px solid; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; background: var(--bg-card); transition: 0.3s; }
+        .ped-shape.male { border-radius: 4px; border-color: var(--male-color); box-shadow: 0 0 15px rgba(59,130,246,0.2); }
+        .ped-shape.female { border-radius: 50%; border-color: var(--female-color); box-shadow: 0 0 15px rgba(236,72,153,0.2); }
+        .ped-shape.affected.male { background: var(--male-color); color: #fff; }
+        .ped-shape.affected.female { background: var(--female-color); color: #fff; }
+        .ped-shape.carrier.male { background: linear-gradient(90deg, var(--male-color) 50%, var(--bg-card) 50%); }
+        .ped-shape.carrier.female { background: linear-gradient(90deg, var(--female-color) 50%, var(--bg-card) 50%); }
+        .ped-label { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+        .ped-status { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+
+        .ped-marriage-line { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); width: calc(100% - 80px); height: 2px; background: rgba(255,255,255,0.3); z-index: 1; }
+        .ped-descent-line { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); width: 2px; height: 40px; background: rgba(255,255,255,0.3); z-index: 1; }
+        .ped-offspring-container { position: relative; display: flex; justify-content: center; margin-top: 40px; }
+        .ped-dist-line { position: absolute; top: -30px; height: 2px; background: rgba(255,255,255,0.3); }
+        .ped-offspring { display: flex; justify-content: center; gap: 40px; position: relative; }
+        .ped-child { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; }
+        .ped-child::before { content: ''; position: absolute; top: -30px; left: 50%; transform: translateX(-50%); width: 2px; height: 30px; background: rgba(255,255,255,0.3); }
+
+        /* STEP 4 Visual Chart (Figure-based) */
+        .visual-chart { padding: 40px 20px; text-align: center; }
+        .vis-parents { display: flex; justify-content: center; gap: 120px; position: relative; margin-bottom: 60px; }
+        .vis-figure { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 140px; }
+        .vis-icon { font-size: 90px; line-height: 1; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.5)); transition: transform 0.3s; }
+        .vis-icon:hover { transform: scale(1.05); }
+        
+        .c-normal { color: #3b82f6; } /* Blue */
+        .c-carrier { color: #9333ea; } /* Purple */
+        .c-affected { color: #ef4444; } /* Red */
+        
+        .vis-label { font-size: 14px; font-weight: 700; }
+        .vis-status { font-size: 12px; color: var(--text-secondary); font-style: italic; }
+        .vis-alleles { display: flex; gap: 5px; margin-top: 5px; }
+        .vis-allele { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; background: var(--bg-card); border: 2px solid rgba(255,255,255,0.2); }
+        
+        .vis-children-container { position: relative; }
+        .vis-children { display: flex; justify-content: center; gap: 40px; position: relative; z-index: 2; }
+        .vis-connector { position: absolute; top: 120px; left: 50%; transform: translateX(-50%); width: 60%; height: 60px; border-top: 2px solid rgba(255,255,255,0.2); border-left: 2px solid rgba(255,255,255,0.2); border-right: 2px solid rgba(255,255,255,0.2); border-top-left-radius: 10px; border-top-right-radius: 10px; z-index: 1; }
+
+        /* Treatments & Chromo info */
+        .treatment-box { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); padding: 30px; border-radius: var(--radius); text-align: left; margin-bottom: 20px; }
+        .chromo-result-box { background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); padding: 30px; border-radius: var(--radius); text-align: left; margin-bottom: 20px; }
+        .t-title { font-size: 20px; font-weight: 800; color: var(--accent-3); margin-bottom: 12px; }
+        .t-desc { font-size: 15px; color: var(--text-primary); line-height: 1.7; }
+        .risk-badge { display: inline-block; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 16px; margin: 10px 0; }
+        .risk-low { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+        .risk-med { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+        .risk-high { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+        /* Reset */
+        .reset-wrapper { text-align: center; margin: 20px 0 60px; }
+        .reset-btn { background: var(--bg-glass); color: var(--text-primary); border: 1.5px solid var(--border-glass); border-radius: 60px; padding: 14px 40px; font-size: 15px; font-weight: 700; cursor: pointer; transition: var(--transition); }
+        .reset-btn:hover { border-color: var(--accent-1); background: rgba(99,102,241,0.1); box-shadow: 0 0 20px rgba(99,102,241,0.2); }
+
+        /* ===== TOP PROFILE NAVIGATION ===== */
+        .user-profile-bar {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            z-index: 50;
+        }
+        @media (max-width: 640px) {
+            .user-profile-bar { position: relative; top: 0; right: 0; display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        }
+
+        .user-profile-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            padding: 8px 16px 8px 10px;
+            border-radius: 40px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .user-profile-btn:hover {
+            border-color: var(--accent-1);
+            background: rgba(99, 102, 241, 0.15);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            color: white;
+            font-weight: 800;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+
+        .user-nav-name {
+            font-size: 14px;
+            font-weight: 700;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* ===== PROFILE MODAL ===== */
+        .profile-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .profile-modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .profile-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius);
+            padding: 32px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .profile-card-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .profile-avatar-large {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            color: white;
+            font-size: 28px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 25px rgba(99, 102, 241, 0.6);
+            margin-bottom: 12px;
+        }
+
+        .profile-card-header h3 {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .profile-email-badge {
+            font-size: 13px;
+            color: var(--cyan);
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .profile-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            text-align: left;
+            margin-bottom: 24px;
+        }
+
+        .profile-detail-item {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-xs);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .detail-val {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+
+        .logout-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            border-radius: 60px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 28px rgba(239, 68, 68, 0.6);
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+        }
+
+        .profile-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            margin-top: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .profile-close-btn:hover {
+            color: #fff;
+            text-decoration: underline;
+        }
+
+        footer { text-align: center; padding: 40px 0; color: #ffffff; font-size: 14px; border-top: 1px solid #ffffff; background: var(--bg-primary); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- TOP NAVIGATION / PROFILE BAR -->
+    <div class="user-profile-bar">
+        <button type="button" class="user-profile-btn" onclick="openProfileModal()">
+            <div class="user-avatar" id="navAvatar">U</div>
+            <span class="user-nav-name" id="navUserName">User</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+    </div>
+
+    <!-- PROFILE MODAL -->
+    <div class="profile-modal-overlay" id="profileModalOverlay" onclick="closeProfileModal(event)">
+        <div class="profile-card" onclick="event.stopPropagation()">
+            <div class="profile-card-header">
+                <div class="profile-avatar-large" id="profileAvatarLarge">U</div>
+                <h3 id="profileNameDisplay">User Name</h3>
+                <div class="profile-email-badge" id="profileEmailDisplay">user@example.com</div>
+            </div>
+            
+            <div class="profile-details-grid">
+                <div class="profile-detail-item">
+                    <span class="detail-label">Age</span>
+                    <span class="detail-val" id="profileAgeDisplay">-</span>
+                </div>
+                <div class="profile-detail-item">
+                    <span class="detail-label">Gender</span>
+                    <span class="detail-val" id="profileGenderDisplay">-</span>
+                </div>
+                <div class="profile-detail-item">
+                    <span class="detail-label">Mobile Number</span>
+                    <span class="detail-val" id="profileMobileDisplay">-</span>
+                </div>
+                <div class="profile-detail-item">
+                    <span class="detail-label">Genetic Disorder Name</span>
+                    <span class="detail-val" id="profileDisorderDisplay">-</span>
+                </div>
+            </div>
+
+            <button type="button" class="logout-btn" onclick="handleLogout()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Logout</span>
+            </button>
+            <button type="button" class="profile-close-btn" onclick="closeProfileModal()">Close</button>
+        </div>
+    </div>
+
+    <header>
+        <div class="logo">
+            <div class="logo-icon">
+                <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M35 80 C 15 50, 85 50, 65 20" stroke="url(#grad1)" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M65 80 C 85 50, 15 50, 35 20" stroke="url(#grad2)" stroke-width="8" stroke-linecap="round"/>
+                    <circle cx="35" cy="80" r="5" fill="#0ea5e9"/>
+                    <circle cx="65" cy="20" r="5" fill="#eab308"/>
+                    <circle cx="65" cy="80" r="5" fill="#10b981"/>
+                    <circle cx="35" cy="20" r="5" fill="#10b981"/>
+                    <line x1="43" y1="62" x2="57" y2="62" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="43" y1="38" x2="57" y2="38" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round"/>
+                    <line x1="50" y1="48" x2="50" y2="52" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round"/>
+                    <defs>
+                        <linearGradient id="grad1" x1="0" y1="100" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#0ea5e9"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                        <linearGradient id="grad2" x1="0" y1="100" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#10b981"/>
+                            <stop offset="100%" stop-color="#eab308"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <h1>Geno Predict</h1>
+        </div>
+        <div class="tagline">FUSION IS THE FUTURE</div>
+        <p>Predict genetic disorder inheritance with scientific accuracy and beautiful visualizations.</p>
+    </header>
+
+    <div class="steps-bar">
+        <div class="step-dot active" id="stepDot1">1</div><div class="step-line" id="stepLine1"></div>
+        <div class="step-dot" id="stepDot2">2</div><div class="step-line" id="stepLine2"></div>
+        <div class="step-dot" id="stepDot3">3</div><div class="step-line" id="stepLine3"></div>
+        <div class="step-dot" id="stepDot4">4</div>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="card" id="step1Card">
+        <div class="card-title">Step 1</div>
+        <div class="card-heading">Select Genetic Condition</div>
+        
+        <!-- Symptom Checker Sub-Option (Placed BEFORE disorder selection for easy identification) -->
+        <div style="margin-bottom: 32px; padding: 20px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.25); border-radius: var(--radius-sm);">
+            <div class="category-title" style="margin-top:0; border-bottom:none; color: var(--accent-3);">🔍 Symptoms Matcher (Identify Likely Disorders First)</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+                <div>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">Select observed symptoms to match possible genetic conditions:</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="depigmentation" onchange="matchSymptoms()"> Skin Depigmentation / White Patches</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="chest_pain" onchange="matchSymptoms()"> Chest Pain / High Cholesterol</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="joint_pain" onchange="matchSymptoms()"> Joint Pain / Bone Crises</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="happy_seizures" onchange="matchSymptoms()"> Happy Demeanor / Seizures</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="anemia" onchange="matchSymptoms()"> Anemia / Fatigue</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="memory_loss" onchange="matchSymptoms()"> Memory Loss / Cognitive Decline</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="color_blind" onchange="matchSymptoms()"> Color Vision Deficiency</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="cat_cry" onchange="matchSymptoms()"> High-pitched Cat-like Cry</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="chorea" onchange="matchSymptoms()"> Involuntary Movements (Chorea)</label>
+                        <label class="symptom-chip"><input type="checkbox" class="symptom-cb" value="tall_limbs" onchange="matchSymptoms()"> Unusually Tall / Long Limbs</label>
+                    </div>
+                </div>
+                <div style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 20px; min-height: 160px;">
+                    <div style="font-size: 14px; font-weight: 700; color: var(--accent-3); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>Matched Genetic Disorders</span>
+                        <span style="font-size: 11px; opacity: 0.8; color: var(--cyan);">Visuals & Selection</span>
+                    </div>
+                    <div id="symptomsMatchResults" style="font-size: 13px; color: var(--text-secondary);">
+                        <i>Select symptoms on the left to view matching disorders, affected disease images, and quick select options.</i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="category-title">Autosomal Recessive Disorders</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="sickle_cell" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🩸</span>
+                <div class="disorder-name">Sickle Cell Anemia</div>
+                <a href="https://medlineplus.gov/genetics/condition/sickle-cell-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="thalassemia" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🔬</span>
+                <div class="disorder-name">Thalassemia</div>
+                <a href="https://medlineplus.gov/genetics/condition/beta-thalassemia/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="cystic_fibrosis" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🫁</span>
+                <div class="disorder-name">Cystic Fibrosis</div>
+                <a href="https://medlineplus.gov/genetics/condition/cystic-fibrosis/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="pku" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🧪</span>
+                <div class="disorder-name">Phenylketonuria</div>
+                <a href="https://medlineplus.gov/genetics/condition/phenylketonuria/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="tay_sachs" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🧬</span>
+                <div class="disorder-name">Tay-Sachs Disease</div>
+                <a href="https://medlineplus.gov/genetics/condition/tay-sachs-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        <div class="category-title">Autosomal Dominant Disorders</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="huntington" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🧠</span>
+                <div class="disorder-name">Huntington's Disease</div>
+                <a href="https://medlineplus.gov/genetics/condition/huntington-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="marfan" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🦴</span>
+                <div class="disorder-name">Marfan Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/marfan-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="familial_alzheimer" onclick="selectDisorder(this)">
+                <span class="disorder-icon">👴</span>
+                <div class="disorder-name">Familial Alzheimer's</div>
+                <a href="https://medlineplus.gov/genetics/condition/alzheimer-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        <div class="category-title">X-Linked Recessive Disorders</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="color_blindness" onclick="selectDisorder(this)">
+                <span class="disorder-icon">👁️</span>
+                <div class="disorder-name">Color Blindness</div>
+                <a href="https://medlineplus.gov/genetics/condition/color-vision-deficiency/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="hemophilia" onclick="selectDisorder(this)">
+                <span class="disorder-icon">💉</span>
+                <div class="disorder-name">Hemophilia</div>
+                <a href="https://medlineplus.gov/genetics/condition/hemophilia/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        <div class="category-title">X-Linked Dominant Disorders</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="fragile_x" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🧬</span>
+                <div class="disorder-name">Fragile X Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/fragile-x-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        <div class="category-title">Chromosomal Abnormalities</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="down_syndrome" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🧬</span>
+                <div class="disorder-name">Down Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/down-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="klinefelter" onclick="selectDisorder(this)">
+                <span class="disorder-icon">👨‍⚕️</span>
+                <div class="disorder-name">Klinefelter Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/klinefelter-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="turner" onclick="selectDisorder(this)">
+                <span class="disorder-icon">👩‍⚕️</span>
+                <div class="disorder-name">Turner Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/turner-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="cri_du_chat" onclick="selectDisorder(this)">
+                <span class="disorder-icon">👶</span>
+                <div class="disorder-name">Cri du Chat</div>
+                <a href="https://medlineplus.gov/genetics/condition/cri-du-chat-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="angelman" onclick="selectDisorder(this)">
+                <span class="disorder-icon">😃</span>
+                <div class="disorder-name">Angelman Syndrome</div>
+                <a href="https://medlineplus.gov/genetics/condition/angelman-syndrome/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        <div class="category-title">Mitochondrial & Complex Disorders</div>
+        <div class="disorder-grid">
+            <div class="disorder-btn" data-disorder="mitochondrial" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🔋</span>
+                <div class="disorder-name">Mitochondrial Disorder</div>
+                <a href="https://medlineplus.gov/genetics/condition/mitochondrial-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="cad" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🫀</span>
+                <div class="disorder-name">Coronary Artery Disease</div>
+                <a href="https://medlineplus.gov/genetics/condition/coronary-artery-disease/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+            <div class="disorder-btn" data-disorder="vitiligo" onclick="selectDisorder(this)">
+                <span class="disorder-icon">🦓</span>
+                <div class="disorder-name">Vitiligo</div>
+                <a href="https://medlineplus.gov/genetics/condition/vitiligo/" target="_blank" class="info-link" onclick="event.stopPropagation()">ℹ️ Info</a>
+            </div>
+        </div>
+
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="card parents-section" id="step2Card">
+        <div class="card-title">Step 2</div>
+        <div class="card-heading">Input Diagnostic Data</div>
+        
+        <!-- Standard Mendelian Parents Input -->
+        <div class="parents-grid" id="parentsGrid">
+            <div class="parent-card male">
+                <div class="gender-symbol">♂</div>
+                <div class="parent-label">Father (Patient 1)</div>
+                <div class="genotype-options" id="fatherOptions"></div>
+            </div>
+            <div class="parent-card female">
+                <div class="gender-symbol">♀</div>
+                <div class="parent-label">Mother (Patient 2)</div>
+                <div class="genotype-options" id="motherOptions"></div>
+            </div>
+        </div>
+
+        <!-- Chromosomal Forms Input -->
+        <div class="chromo-forms" id="chromoForms">
+            <div id="form-down_syndrome" class="chromo-form">
+                <div class="input-group">
+                    <label>Maternal Age</label>
+                    <input type="number" id="ds_mat_age" value="30">
+                </div>
+                <div class="input-group">
+                    <label>Nuchal Translucency (NT) Value (mm)</label>
+                    <input type="number" step="0.1" id="ds_nt" value="2.0">
+                </div>
+                <div class="input-group">
+                    <label>Does the Father have Down Syndrome?</label>
+                    <select id="ds_father">
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="form-klinefelter" class="chromo-form">
+                <div class="input-group"><label>Maternal Age</label><input type="number" id="ks_mat_age" value="30"></div>
+                <div class="input-group"><label>Gestational Age (weeks)</label><input type="number" id="ks_gest_age" value="12"></div>
+                <div class="input-group"><label>Fetal Fraction (%)</label><input type="number" id="ks_fetal_frac" value="10"></div>
+                <div class="input-group"><label>X Chromosome Ratio</label><input type="number" step="0.01" id="ks_x_ratio" value="1.0"></div>
+                <div class="input-group"><label>Y Chromosome Ratio</label><input type="number" step="0.01" id="ks_y_ratio" value="0.4"></div>
+                <div class="input-group"><label>XXY Probability (%)</label><input type="number" id="ks_xxy_prob" value="5"></div>
+            </div>
+
+            <div id="form-turner" class="chromo-form">
+                <div class="input-group"><label>Maternal Age</label><input type="number" id="ts_mat_age" value="30"></div>
+                <div class="input-group"><label>Gestational Age (weeks)</label><input type="number" id="ts_gest_age" value="12"></div>
+                <div class="input-group"><label>Fetal Fraction (%)</label><input type="number" id="ts_fetal_frac" value="10"></div>
+                <div class="input-group"><label>X Monosomy Probability (%)</label><input type="number" step="0.1" id="ts_x_prob" value="0.5"></div>
+            </div>
+            
+            <div id="form-cri_du_chat" class="chromo-form">
+                <div class="cri-du-chat-msg">
+                    Sorry, I can't predict this. There is no standard data to accurately compare against for this syndrome.
+                </div>
+            </div>
+            
+            <div id="form-angelman" class="chromo-form">
+                <div class="input-group">
+                    <label>Is the father affected with Angelman Syndrome (mother normal)?</label>
+                    <select id="as_father_affected">
+                        <option value="no">No</option>
+                        <option value="yes">Yes (3% to 5% risk)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Observed Infant Physique / Clinical signs (after birth):</label>
+                    <select id="as_physique">
+                        <option value="normal">Standard / Unremarkable</option>
+                        <option value="characteristic">Happy disposition, frequent unprovoked laughter, motor delay</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="form-cad" class="chromo-form">
+                <div style="font-size: 14px; font-weight: 700; color: var(--accent-3); margin-bottom: 12px;">Coronary Artery Disease (CAD) Multi-Factor Assessment</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="input-group">
+                        <label>Family history of CAD?</label>
+                        <select id="cad_fam"><option value="no">No</option><option value="yes">Yes (+3 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Do you smoke?</label>
+                        <select id="cad_smoke"><option value="no">No</option><option value="yes">Yes (+3 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Frequent alcohol consumption?</label>
+                        <select id="cad_alcohol"><option value="no">No</option><option value="yes">Yes (+2 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Do you exercise regularly?</label>
+                        <select id="cad_exercise"><option value="yes">Yes (0 pts)</option><option value="no">No (+2 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Is your diet healthy?</label>
+                        <select id="cad_diet"><option value="yes">Yes (0 pts)</option><option value="no">No (+2 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Overweight / Obese?</label>
+                        <select id="cad_obesity"><option value="no">No</option><option value="yes">Yes (+2 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>High stress level?</label>
+                        <select id="cad_stress"><option value="no">No</option><option value="yes">Yes (+2 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>Do you have diabetes?</label>
+                        <select id="cad_diabetes"><option value="no">No</option><option value="yes">Yes (+3 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>High Blood Pressure?</label>
+                        <select id="cad_bp"><option value="no">No</option><option value="yes">Yes (+3 pts)</option></select>
+                    </div>
+                    <div class="input-group">
+                        <label>High Cholesterol?</label>
+                        <select id="cad_cholesterol"><option value="no">No</option><option value="yes">Yes (+3 pts)</option></select>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="form-vitiligo" class="chromo-form">
+                <div class="input-group">
+                    <label>Are the parents in a consanguineous marriage (close blood relation)?</label>
+                    <select id="vit_consanguineous">
+                        <option value="no">No / Out of family</option>
+                        <option value="yes">Yes (5% to 7% risk)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Does either parent have Vitiligo?</label>
+                    <select id="vit_parent_affected">
+                        <option value="none">Neither (Normal parents)</option>
+                        <option value="father">Affected Father with Normal Mother (11% to 13% risk)</option>
+                        <option value="mother">Normal Father with Affected Mother (11% to 13% risk)</option>
+                        <option value="both">Both Parents Affected (>38% risk)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Is this prediction for Monozygotic (identical) twins?</label>
+                    <select id="vit_twins">
+                        <option value="no">No</option>
+                        <option value="yes">Yes (23% risk for single twin)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="predict-wrapper" id="predictWrapper">
+        <button class="predict-btn" id="predictBtn" onclick="predict()" disabled>
+            <span>🔬 &nbsp;Analyze Genetics</span>
+        </button>
+    </div>
+
+    <!-- STEP 3: RESULTS -->
+    <div class="results-section" id="resultsSection">
+        <div class="card">
+            <div class="card-title">Step 3</div>
+            <div class="card-heading" id="resultsHeading">Prediction Results & Treatments</div>
+            
+            <!-- Standard Charts Tabs (Pedigree, Punnett, Treatment, Gene Info) -->
+            <div id="standardResults">
+                <div class="result-tabs" id="resultTabs">
+                    <button class="result-tab active" onclick="switchTab('pedigree')">👨‍👩‍👧‍👦 Pedigree Chart</button>
+                    <button class="result-tab" onclick="switchTab('punnett')">🧮 Punnett Square</button>
+                    <button class="result-tab" onclick="switchTab('treatment')">💊 Treatments</button>
+                    <button class="result-tab" onclick="switchTab('gene_info')">🧬 Genetics & Infographic</button>
+                </div>
+
+                <div class="tab-content active" id="tab-pedigree">
+                    <div class="symbol-legend">
+                        <div class="symbol-item"><div class="sym-shape sym-male"></div> Male</div>
+                        <div class="symbol-item"><div class="sym-shape sym-female"></div> Female</div>
+                        <div class="symbol-item"><div class="sym-shape sym-male sym-affected"></div> Affected Male</div>
+                        <div class="symbol-item"><div class="sym-shape sym-female sym-carrier"></div> Carrier Female</div>
+                    </div>
+                    <div id="pedigreeRenderArea"></div>
+                </div>
+
+                <div class="tab-content" id="tab-punnett">
+                    <div style="display:flex; justify-content:center; margin-top:20px;">
+                        <div id="punnettRenderArea"></div>
+                    </div>
+                </div>
+                
+                <div class="tab-content" id="tab-treatment">
+                    <div id="treatmentRenderArea"></div>
+                </div>
+
+                <div class="tab-content" id="tab-gene_info">
+                    <div id="geneInfoRenderArea"></div>
+                </div>
+            </div>
+
+            <!-- Chromosomal Results Tabs -->
+            <div id="chromoResults" style="display:none;">
+                <div class="result-tabs" id="chromoResultTabs">
+                    <button class="result-tab active" onclick="switchTab('c_analysis')">📈 Risk Analysis</button>
+                    <button class="result-tab" onclick="switchTab('c_treatment')">💊 Treatments</button>
+                    <button class="result-tab" onclick="switchTab('c_gene_info')">🧬 Genetics & Infographic</button>
+                </div>
+                
+                <div class="tab-content active" id="tab-c_analysis">
+                    <div id="chromoRiskArea"></div>
+                </div>
+                
+                <div class="tab-content" id="tab-c_treatment">
+                    <div id="chromoTreatmentArea"></div>
+                </div>
+
+                <div class="tab-content" id="tab-c_gene_info">
+                    <div id="cGeneInfoRenderArea"></div>
+                </div>
+            </div>
+            
+            <div style="text-align:center; margin-top: 30px; display: flex; flex-direction: column; gap: 10px;">
+                <a href="https://en.wikipedia.org/wiki/Genetic_disorder" target="_blank" style="color: var(--cyan); font-weight: bold; font-size: 15px; text-decoration: none;">🔍 More Information on Genetic Disorders (Wikipedia)</a>
+                <a href="https://www.ncbi.nlm.nih.gov/" target="_blank" style="color: var(--cyan); font-weight: bold; font-size: 15px; text-decoration: none;">🔬 Additional Genetic Information (NCBI)</a>
+            </div>
+
+        </div>
+    </div>
+    
+    <!-- STEP 4: VISUAL CHART -->
+    <div class="step4-section" id="step4Section">
+        <div class="card">
+            <div class="card-title">Step 4</div>
+            <div class="card-heading">Inheritance Flow (Easy Understanding)</div>
+            <div id="step4RenderArea"></div>
+        </div>
+        
+        <div class="reset-wrapper">
+            <button class="reset-btn" onclick="resetAll()">↺ &nbsp;Start New Analysis</button>
+        </div>
+    </div>
+
+</div>
+
+<footer>@ all rights are reserved to The Paras Vasurkar </footer>
+
+<script>
+let selectedDisorder = null, fatherGenotype = null, motherGenotype = null;
+
+const disorders = {
+    sickle_cell: { 
+        name: "Sickle Cell Anemia", type: "autosomal", dom: "A", rec: "S",
+        gene: "HBB (Hemoglobin Subunit Beta)", locus: "Chromosome 11p15.4",
+        mechanism: "Glu6Val point mutation in beta-globin chain causing HbS polymer formation under low oxygen, distorting RBCs into rigid sickle shapes.",
+        diagnosis: "Hemoglobin Electrophoresis, HPLC, Newborn Genetic Screening (PCR).",
+        symptoms: "Vaso-occlusive painful crises, chronic hemolytic anemia, jaundice, fatigue, organ damage risk.",
+        img: null
+    },
+    thalassemia: { 
+        name: "Thalassemia", type: "autosomal", dom: "R", rec: "r",
+        gene: "HBA1/HBA2 or HBB", locus: "Chromosome 16p13.3 / Chromosome 11p15.4",
+        mechanism: "Reduced synthesis or absence of alpha or beta globin chains causing unbalanced globin chain ratios and severe ineffective erythropoiesis.",
+        diagnosis: "Complete Blood Count (CBC) with microcytosis, Hb Electrophoresis, DNA Sequencing.",
+        symptoms: "Severe anemia, bone deformities, hepatosplenomegaly, iron overload.",
+        img: null
+    },
+    cystic_fibrosis: { 
+        name: "Cystic Fibrosis", type: "autosomal", dom: "C", rec: "c",
+        gene: "CFTR (Cystic Fibrosis Transmembrane Conductance Regulator)", locus: "Chromosome 7q31.2",
+        mechanism: "F508del mutation causing defective chloride ion channel transport, leading to thick sticky mucus accumulation in lungs and digestive tract.",
+        diagnosis: "Sweat Chloride Test (>60 mmol/L), IRT Newborn Screening, CFTR Gene Panel.",
+        symptoms: "Chronic pulmonary infections, pancreatic insufficiency, male infertility, salty skin.",
+        img: null
+    },
+    pku: { 
+        name: "Phenylketonuria (PKU)", type: "autosomal", dom: "A", rec: "a",
+        gene: "PAH (Phenylalanine Hydroxylase)", locus: "Chromosome 12q23.2",
+        mechanism: "Deficiency in PAH enzyme prevents conversion of phenylalanine to tyrosine, causing toxic accumulation of Phe in brain and tissue.",
+        diagnosis: "Guthrie Card Blood Spot Test, Tandem Mass Spectrometry at birth.",
+        symptoms: "Intellectual disability, musty odor, hypopigmentation (fair skin/blue eyes), seizures.",
+        img: null
+    },
+    tay_sachs: { 
+        name: "Tay-Sachs Disease", type: "autosomal", dom: "T", rec: "t",
+        gene: "HEXA (Hexosaminidase A)", locus: "Chromosome 15q23",
+        mechanism: "Deficiency of Hexosaminidase A leads to toxic GM2 ganglioside accumulation in neurons, causing rapid neurodegeneration.",
+        diagnosis: "Hexosaminidase A Enzyme Assay, HEXA Targeted Gene Mutation Analysis.",
+        symptoms: "Cherry-red spot on macula, loss of motor skills, muscle weakness, seizures, early onset.",
+        img: null
+    },
+    huntington: { 
+        name: "Huntington's Disease", type: "autosomal_dominant", dom: "H", rec: "h",
+        gene: "HTT (Huntingtin)", locus: "Chromosome 4p16.3",
+        mechanism: "Unstable CAG trinucleotide repeat expansion (>36 repeats) encoding mutated polyglutamine huntingtin protein causing striatal neurodegeneration.",
+        diagnosis: "Targeted PCR for CAG Repeat Length Analysis, Neurological Imaging.",
+        symptoms: "Chorea (involuntary movement), cognitive decline, psychiatric disturbances, gait instability.",
+        img: null
+    },
+    marfan: { 
+        name: "Marfan Syndrome", type: "autosomal_dominant", dom: "F", rec: "f",
+        gene: "FBN1 (Fibrillin-1)", locus: "Chromosome 15q21.1",
+        mechanism: "Mutations in FBN1 impair microfibril assembly and cause excessive TGF-beta signaling, compromising connective tissue integrity.",
+        diagnosis: "Ghent Nosology Clinical Criteria, Echocardiogram, FBN1 DNA Sequencing.",
+        symptoms: "Tall spindly stature, arachnodactyly, aortic root aneurysm, ectopia lentis (eye lens dislocation).",
+        img: null
+    },
+    familial_alzheimer: { 
+        name: "Familial Alzheimer's", type: "autosomal_dominant", dom: "A", rec: "a",
+        gene: "APP, PSEN1, or PSEN2", locus: "Chromosomes 21q21.3, 14q24.2, 1q42.13",
+        mechanism: "Altered processing of amyloid precursor protein increases toxic Amyloid-beta 42 plaque deposition and neurofibrillary tau tangles.",
+        diagnosis: "Genetic Sequencing Panel (PSEN1/PSEN2/APP), Brain PET Scan, CSF Biomarkers.",
+        symptoms: "Early-onset progressive memory loss, executive dysfunction, language impairment, disorientation.",
+        img: "assets/alzheimer_info.png"
+    },
+    color_blindness: { 
+        name: "Color Blindness", type: "xlinked", dom: "N", rec: "c",
+        gene: "OPN1MW / OPN1LW (Opsin 1)", locus: "Chromosome Xq28",
+        mechanism: "Mutations or gene conversions in red/green cone opsin gene cluster impair photopigment spectral sensitivity.",
+        diagnosis: "Ishihara Pseudoisochromatic Color Plates, Anomaloscope Testing.",
+        symptoms: "Difficulty distinguishing red-green spectral shades, normal visual acuity otherwise.",
+        img: null
+    },
+    hemophilia: { 
+        name: "Hemophilia", type: "xlinked", dom: "N", rec: "h",
+        gene: "F8 (Factor VIII) / F9 (Factor IX)", locus: "Chromosome Xq28 / Xq27.1",
+        mechanism: "Deficiency of essential blood clotting factor VIII (Hemophilia A) or IX (Hemophilia B) impairs intrinsic coagulation pathway.",
+        diagnosis: "Prolonged Activated Partial Thromboplastin Time (aPTT), Specific Factor Activity Assays.",
+        symptoms: "Spontaneous joint hemorrhage (hemarthrosis), prolonged bleeding after minor injuries, deep tissue hematomas.",
+        img: null
+    },
+    fragile_x: { 
+        name: "Fragile X Syndrome", type: "xlinked_dominant", dom: "F", rec: "f",
+        gene: "FMR1 (Fragile X Messenger Ribonucleoprotein 1)", locus: "Chromosome Xq27.3",
+        mechanism: "CGG trinucleotide expansion (>200 repeats) leads to hypermethylation and transcriptional silencing of FMR1 gene.",
+        diagnosis: "Southern Blot Analysis and PCR for CGG Repeat Quantification.",
+        symptoms: "Intellectual disability, macroorchidism, long narrow face, prominent ears, autism spectrum behaviors.",
+        img: null
+    },
+    down_syndrome: { 
+        name: "Down Syndrome", type: "chromosomal",
+        gene: "Trisomy 21 (Complete 47,XX/XY +21 or Translocation)", locus: "Chromosome 21",
+        mechanism: "Extra copy of chromosome 21 resulting from meiotic non-disjunction during gametogenesis.",
+        diagnosis: "Karyotyping, Non-Invasive Prenatal Testing (NIPT), Amniocentesis.",
+        symptoms: "Single palmar crease, hypotonia, flat facial profile, upslanting palpebral fissures, congenital heart defects.",
+        img: null
+    },
+    klinefelter: { 
+        name: "Klinefelter Syndrome", type: "chromosomal",
+        gene: "Karyotype 47,XXY", locus: "Sex Chromosomes (X and Y)",
+        mechanism: "Presence of an additional X chromosome in males due to maternal or paternal meiotic non-disjunction.",
+        diagnosis: "Chromosomal Karyotyping, Serum Testosterone and LH/FSH Hormone Panel.",
+        symptoms: "Tall stature, hypogonadism, gynecomastia, reduced facial/body hair, subfertility.",
+        img: null
+    },
+    turner: { 
+        name: "Turner Syndrome", type: "chromosomal",
+        gene: "Monosomy X (45,X)", locus: "Sex Chromosomes",
+        mechanism: "Complete or partial absence of a second sex chromosome in females.",
+        diagnosis: "Prenatal Ultrasound (increased NT), Karyotype Analysis.",
+        symptoms: "Short stature, webbed neck (pterygium colli), coarctation of aorta, primary amenorrhea.",
+        img: null
+    },
+    cri_du_chat: { 
+        name: "Cri du Chat Syndrome", type: "chromosomal",
+        gene: "5p Deletion (Partial Loss of Short Arm)", locus: "Chromosome 5p15.2",
+        mechanism: "Partial terminal or interstitial deletion of short arm (p) of chromosome 5.",
+        diagnosis: "High-Resolution Chromosomal Microarray (CMA), FISH Analysis.",
+        symptoms: "High-pitched cat-like cry in infants, microcephaly, hypertelorism, severe intellectual disability.",
+        img: null
+    },
+    angelman: { 
+        name: "Angelman Syndrome", type: "chromosomal",
+        gene: "UBE3A (Ubiquitin Protein Ligase E3A)", locus: "Chromosome 15q11.2-q13",
+        mechanism: "Loss of maternal UBE3A expression due to 15q11-q13 deletion, paternal uniparental disomy, or imprinting defect.",
+        diagnosis: "DNA Methylation Analysis, UBE3A Gene Sequencing.",
+        symptoms: "Frequent unprovoked laughter, happy disposition, severe speech impairment, ataxia, seizures, microcephaly.",
+        img: "assets/angelman_info.png"
+    },
+    mitochondrial: { 
+        name: "Mitochondrial Disorder", type: "mitochondrial",
+        gene: "mtDNA Genes (e.g. MT-TL1, MT-ND5)", locus: "Mitochondrial Genome",
+        mechanism: "Mutations in mitochondrial DNA inherited strictly through maternal oocytes affect oxidative phosphorylation and ATP generation.",
+        diagnosis: "Mitochondrial Genome Sequencing, Muscle Biopsy (Ragged-red fibers), Lactate/Pyruvate Ratios.",
+        symptoms: "Multisystem organ involvement, muscle weakness, exercise intolerance, ptosis, stroke-like episodes.",
+        img: null
+    },
+    cad: { 
+        name: "Coronary Artery Disease", type: "multifactorial",
+        gene: "Polygenic (e.g. LPA, 9p21 locus, PCSK9)", locus: "Multifactorial / Polygenic",
+        mechanism: "Interaction of polygenic susceptibility loci with environmental risk factors leading to coronary atherosclerosis.",
+        diagnosis: "Coronary Angiography, CT Calcium Scoring, Lipid Panel, High-Sensitivity CRP.",
+        symptoms: "Angina chest pain, shortness of breath, myocardial infarction risk, fatigue.",
+        img: "assets/cad_info.png"
+    },
+    vitiligo: { 
+        name: "Vitiligo", type: "multifactorial",
+        gene: "Polygenic (e.g. NLRP1, PTPN22, TYR)", locus: "Multifactorial / Autoimmune",
+        mechanism: "Autoimmune destruction of epidermal melanocytes driven by CD8+ T-cells and oxidative stress in genetically susceptible individuals.",
+        diagnosis: "Wood's Lamp Examination, Skin Biopsy (absence of functional melanocytes).",
+        symptoms: "Well-demarcated depigmented macules/patches, premature graying of scalp hair or eyelashes.",
+        img: "assets/vitiligo_info.png"
+    }
+};
+
+const treatments = {
+    sickle_cell: "Pain management, hydroxyurea, blood transfusions, and in some cases, stem cell transplants.",
+    thalassemia: "Frequent blood transfusions, iron chelation therapy, folic acid supplements.",
+    cystic_fibrosis: "Airway clearance techniques, inhaled medications (bronchodilators), pancreatic enzyme supplements.",
+    pku: "Strict diet with very limited intake of phenylalanine, amino acid supplements.",
+    tay_sachs: "No cure. Supportive care including medication for pain and seizures, physical therapy.",
+    huntington: "No cure. Medications to manage chorea (involuntary movements) and psychiatric symptoms.",
+    marfan: "Medications to lower blood pressure (beta blockers), surgery for aortic repair, physical therapy.",
+    familial_alzheimer: "Cholinesterase inhibitors, NMDA receptor antagonists, supportive care for cognitive symptoms.",
+    color_blindness: "No cure, but special lenses/glasses can enhance color perception. Focus on lifestyle adaptation.",
+    hemophilia: "Replacement therapy for the specific clotting factor (Factor VIII or IX) that is reduced or missing.",
+    fragile_x: "Special education, speech and language therapy, behavioral therapy.",
+    down_syndrome: "Early intervention programs, physical therapy, speech therapy, special education, and regular health checkups.",
+    klinefelter: "Testosterone replacement therapy, physical/speech therapy, and fertility treatments if desired.",
+    turner: "Growth hormone therapy, estrogen replacement therapy, and regular monitoring for cardiac/renal issues.",
+    cri_du_chat: "Physical and speech therapy, special education, and treating associated complications (like heart defects).",
+    angelman: "Anti-seizure medications, physical and communication therapy, behavioral therapy.",
+    mitochondrial: "Supportive care, vitamins and supplements (like CoQ10), pacing activities.",
+    cad: "Lifestyle changes (diet, exercise), statins, beta blockers, possibly angioplasty or bypass surgery.",
+    vitiligo: "Topical corticosteroids, light therapy (phototherapy), depigmentation in severe cases."
+};
+
+function selectDisorder(el) {
+    document.querySelectorAll('.disorder-btn').forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedDisorder = el.dataset.disorder;
+    fatherGenotype = null; motherGenotype = null;
+    
+    const d = disorders[selectedDisorder];
+    const pGrid = document.getElementById('parentsGrid');
+    const cForms = document.getElementById('chromoForms');
+    const pBtn = document.getElementById('predictBtn');
+    
+    // Hide all chromo forms
+    document.querySelectorAll('.chromo-form').forEach(f => f.classList.remove('active'));
+    
+    if (d.type === 'chromosomal' || d.type === 'multifactorial') {
+        pGrid.style.display = 'none';
+        cForms.style.display = 'block';
+        if (document.getElementById(`form-${selectedDisorder}`)) {
+            document.getElementById(`form-${selectedDisorder}`).classList.add('active');
+        }
+        
+        if (['cri_du_chat'].includes(selectedDisorder)) {
+            pBtn.disabled = true; // No prediction available for Cri du Chat
+        } else {
+            pBtn.disabled = false;
+        }
+    } else {
+        pGrid.style.display = 'grid';
+        cForms.style.display = 'none';
+        pBtn.disabled = true;
+        
+        const fOpts = document.getElementById('fatherOptions');
+        const mOpts = document.getElementById('motherOptions');
+        fOpts.innerHTML = ''; mOpts.innerHTML = '';
+        
+        if (d.type === 'autosomal') {
+            const opts = [
+                {v: 'normal', l: 'Normal', c: d.dom+d.dom},
+                {v: 'carrier', l: 'Carrier', c: d.dom+d.rec},
+                {v: 'affected', l: 'Affected', c: d.rec+d.rec}
+            ];
+            opts.forEach(o => {
+                fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="${o.v}" onclick="selGeno(this)"><span class="geno-code">${o.c}</span> ${o.l}</div>`;
+                mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="${o.v}" onclick="selGeno(this)"><span class="geno-code">${o.c}</span> ${o.l}</div>`;
+            });
+        } else if (d.type === 'autosomal_dominant') {
+            const opts = [
+                {v: 'normal', l: 'Normal', c: d.rec+d.rec},
+                {v: 'affected_het', l: 'Affected (Het)', c: d.dom+d.rec},
+                {v: 'affected_hom', l: 'Affected (Hom)', c: d.dom+d.dom}
+            ];
+            opts.forEach(o => {
+                fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="${o.v}" onclick="selGeno(this)"><span class="geno-code">${o.c}</span> ${o.l}</div>`;
+                mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="${o.v}" onclick="selGeno(this)"><span class="geno-code">${o.c}</span> ${o.l}</div>`;
+            });
+        } else if (d.type === 'mitochondrial') {
+            const mOptsOnly = [
+                {v: 'normal', l: 'Normal', c: 'Mt'},
+                {v: 'affected', l: 'Affected', c: 'Mt*'}
+            ];
+            fOpts.innerHTML += `<div class="genotype-btn selected" data-parent="father" data-val="normal" onclick="selGeno(this)"><span class="geno-code">N/A</span> Irrelevant</div>`;
+            fatherGenotype = 'normal'; // Auto-select for father since he doesn't pass it
+            
+            mOptsOnly.forEach(o => {
+                mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="${o.v}" onclick="selGeno(this)"><span class="geno-code">${o.c}</span> ${o.l}</div>`;
+            });
+        } else if (d.type === 'xlinked') {
+            fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="normal" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>Y</span> Normal</div>`;
+            fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="affected" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.rec}</sup>Y</span> Affected</div>`;
+            
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="normal" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>X<sup>${d.dom}</sup></span> Normal</div>`;
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="carrier" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>X<sup>${d.rec}</sup></span> Carrier</div>`;
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="affected" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.rec}</sup>X<sup>${d.rec}</sup></span> Affected</div>`;
+        } else if (d.type === 'xlinked_dominant') {
+            fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="normal" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.rec}</sup>Y</span> Normal</div>`;
+            fOpts.innerHTML += `<div class="genotype-btn" data-parent="father" data-val="affected" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>Y</span> Affected</div>`;
+            
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="normal" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.rec}</sup>X<sup>${d.rec}</sup></span> Normal</div>`;
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="affected_het" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>X<sup>${d.rec}</sup></span> Affected (Het)</div>`;
+            mOpts.innerHTML += `<div class="genotype-btn" data-parent="mother" data-val="affected_hom" onclick="selGeno(this)"><span class="geno-code">X<sup>${d.dom}</sup>X<sup>${d.dom}</sup></span> Affected (Hom)</div>`;
+        }
+    }
+    
+    document.getElementById('step2Card').classList.add('visible');
+    document.getElementById('predictWrapper').classList.add('visible');
+    document.getElementById('resultsSection').classList.remove('visible');
+    document.getElementById('step4Section').classList.remove('visible');
+    updateSteps(2);
+    document.getElementById('step2Card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function selGeno(el) {
+    const p = el.dataset.parent;
+    document.querySelectorAll(`#${p}Options .genotype-btn`).forEach(b => b.classList.remove('selected'));
+    el.classList.add('selected');
+    if (p === 'father') fatherGenotype = el.dataset.val; else motherGenotype = el.dataset.val;
+    if (fatherGenotype && motherGenotype) document.getElementById('predictBtn').disabled = false;
+}
+
+function predict() {
+    const d = disorders[selectedDisorder];
+    document.getElementById('resultsHeading').textContent = `${d.name} — Analysis`;
+    
+    if (d.type === 'chromosomal' || d.type === 'multifactorial') {
+        document.getElementById('standardResults').style.display = 'none';
+        document.getElementById('chromoResults').style.display = 'block';
+        switchTab('c_analysis'); // Default tab
+        renderChromoLogic(selectedDisorder);
+    } else {
+        document.getElementById('standardResults').style.display = 'block';
+        document.getElementById('chromoResults').style.display = 'none';
+        switchTab('pedigree'); // Default tab
+        renderCharts(d);
+    }
+    
+    document.getElementById('resultsSection').classList.add('visible');
+    document.getElementById('step4Section').classList.add('visible');
+    updateSteps(4);
+    setTimeout(() => document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+
+function renderGeneInfo(disorderKey, containerId) {
+    const d = disorders[disorderKey];
+    if (!d) return;
+    
+    let imgHTML = d.img ? `<div style="text-align:center; margin-bottom: 20px;"><img src="${d.img}" alt="${d.name}" style="max-width:100%; max-height:300px; border-radius: 10px; border: 1px solid var(--border-glass); box-shadow: 0 10px 25px rgba(0,0,0,0.5);"></div>` : '';
+    
+    let html = `
+        <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 24px; color: var(--text-primary);">
+            <div style="font-size: 18px; font-weight: 800; color: var(--accent-3); margin-bottom: 14px;">${d.name} — Genetics & Clinical Profile</div>
+            ${imgHTML}
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <div style="background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--accent-1); font-weight: 700;">Target Gene / Mutation</div>
+                    <div style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 4px;">${d.gene || 'N/A'}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-glass);">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--cyan); font-weight: 700;">Chromosomal Locus</div>
+                    <div style="font-size: 13px; font-weight: 700; color: #fff; margin-top: 4px;">${d.locus || 'N/A'}</div>
+                </div>
+            </div>
+            <div style="margin-bottom: 14px;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--accent-3); margin-bottom: 4px;">Molecular Pathophysiology:</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${d.mechanism || 'N/A'}</div>
+            </div>
+            <div style="margin-bottom: 14px;">
+                <div style="font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 4px;">Diagnostic Tests & Screening:</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${d.diagnosis || 'N/A'}</div>
+            </div>
+            <div>
+                <div style="font-size: 13px; font-weight: 700; color: var(--yellow); margin-bottom: 4px;">Key Clinical Symptoms:</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${d.symptoms || 'N/A'}</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById(containerId).innerHTML = html;
+}
+
+function renderChromoLogic(disorderKey) {
+    const rArea = document.getElementById('chromoRiskArea');
+    const tArea = document.getElementById('chromoTreatmentArea');
+    let riskHTML = "";
+    
+    if (disorderKey === 'down_syndrome') {
+        const matAge = parseInt(document.getElementById('ds_mat_age').value);
+        const ntVal = parseFloat(document.getElementById('ds_nt').value);
+        const faHas = document.getElementById('ds_father').value === 'yes';
+        
+        let mRisk = "", mBadge = "";
+        if (matAge >= 38 || ntVal >= 3.2) {
+            mBadge = '<span class="risk-badge risk-high">HIGH RISK</span>';
+            mRisk = "High risk. Required instructions: genetic counseling, further testing, and monitoring during pregnancy.";
+        } else if ((matAge >= 32 && matAge < 38) || (ntVal >= 2.3 && ntVal < 3.2)) {
+            mBadge = '<span class="risk-badge risk-med">MEDIUM RISK</span>';
+            mRisk = "Medium risk. Required instructions: genetic counseling, further testing, and monitoring during pregnancy.";
+        } else {
+            mBadge = '<span class="risk-badge risk-low">LOW RISK</span>';
+            mRisk = "No significant risk of Down syndrome based on maternal factors.";
+        }
+        
+        let fRisk = faHas ? "Risk of passing is 2% to 4% due to the father having Down syndrome." : "No risk of passing from the father (except via random mutation).";
+        
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">Maternal Risk Assessment</div>
+            ${mBadge}
+            <div class="t-desc">${mRisk}</div>
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+            <div class="t-title">Paternal Risk Factors</div>
+            <div class="t-desc">${fRisk}</div>
+        </div>`;
+    } 
+    else if (disorderKey === 'klinefelter') {
+        const mAge = parseInt(document.getElementById('ks_mat_age').value);
+        const gAge = parseInt(document.getElementById('ks_gest_age').value);
+        const ff = parseFloat(document.getElementById('ks_fetal_frac').value);
+        const xRat = parseFloat(document.getElementById('ks_x_ratio').value);
+        const yRat = parseFloat(document.getElementById('ks_y_ratio').value);
+        const xxyProb = parseFloat(document.getElementById('ks_xxy_prob').value);
+        
+        let res = "INCONCLUSIVE", badge = "risk-med", msg = "Consult Genetic Counselor";
+        
+        if (mAge >= 35 || xRat > 1.20 || (yRat < 0.20 || yRat > 0.80) || xxyProb >= 70) {
+            res = "HIGH RISK"; badge = "risk-high"; msg = "Must consult a genetic expert for early treatment.";
+        } else if ((mAge >= 30 && mAge <= 34) || (xRat >= 1.06 && xRat <= 1.20) || (yRat >= 0.20 && yRat <= 0.29) || (yRat >= 0.61 && yRat <= 0.80) || (xxyProb >= 10 && xxyProb <= 69)) {
+            res = "MEDIUM RISK"; badge = "risk-med"; msg = "Consult a genetic expert for further evaluation.";
+        } else if (mAge < 30 && xRat >= 0.90 && xRat <= 1.05 && yRat >= 0.30 && yRat <= 0.60 && xxyProb < 10) {
+            res = "LOW RISK / Normal"; badge = "risk-low"; msg = "Values fall within standard normal ranges.";
+        }
+        
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">NIPT Screening Result</div>
+            <span class="risk-badge ${badge}">${res}</span>
+            <div class="t-desc">${msg}</div>
+        </div>`;
+    }
+    else if (disorderKey === 'turner') {
+        const mAge = parseInt(document.getElementById('ts_mat_age').value);
+        const gAge = parseInt(document.getElementById('ts_gest_age').value);
+        const ff = parseFloat(document.getElementById('ts_fetal_frac').value);
+        const xProb = parseFloat(document.getElementById('ts_x_prob').value);
+        
+        let res = "INSUFFICIENT SAMPLE / REPEAT TEST", badge = "risk-med";
+        
+        if (mAge < 35 && gAge >= 10 && gAge <= 22 && ff >= 4 && xProb < 1) {
+            res = "LOW RISK"; badge = "risk-low";
+        } else if (mAge >= 35 && gAge >= 10 && gAge <= 22 && ff >= 4 && xProb >= 1 && xProb < 70) {
+            res = "MEDIUM RISK"; badge = "risk-med";
+        } else if (gAge >= 10 && gAge <= 22 && ff >= 4 && xProb >= 70) {
+            res = "HIGH RISK"; badge = "risk-high";
+        }
+        
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">Turner Syndrome Risk Result</div>
+            <span class="risk-badge ${badge}">${res}</span>
+        </div>`;
+    }
+    else if (disorderKey === 'vitiligo') {
+        const consanguineous = document.getElementById('vit_consanguineous').value === 'yes';
+        const parentAffected = document.getElementById('vit_parent_affected').value;
+        const twins = document.getElementById('vit_twins').value === 'yes';
+        
+        let riskPercent = "Baseline (~1%)";
+        let res = "LOW RISK", badge = "risk-low", msg = "No significant familial or hereditary factors detected.";
+        
+        if (consanguineous) {
+            riskPercent = "5% to 7%";
+            res = "INCREASED RISK"; badge = "risk-med";
+            msg = "Marrying within family or close blood relation increases the risk of infant vitiligo to 5% to 7%.";
+        }
+        
+        if (parentAffected === 'father' || parentAffected === 'mother') {
+            riskPercent = "11% to 13% (up to 38%)";
+            res = "HIGH HEREDITARY RISK"; badge = "risk-high";
+            msg = `Risk of infant having vitiligo is 11% to 13% (up to 38% by hereditary) when one parent (${parentAffected === 'father' ? 'Father' : 'Mother'}) is affected.`;
+            if (twins) {
+                riskPercent = "23%";
+                res = "HIGH RISK (Monozygotic Twins)";
+                msg = "If having monozygotic (single) twins, the risk of vitiligo is 23%.";
+            }
+        } else if (parentAffected === 'both') {
+            riskPercent = ">38%";
+            res = "VERY HIGH RISK"; badge = "risk-high";
+            msg = "Hereditary risk is very high when both parents have vitiligo.";
+        }
+
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">Vitiligo Infant Risk Assessment</div>
+            <span class="risk-badge ${badge}">${res} — ${riskPercent}</span>
+            <div class="t-desc" style="margin-top: 10px;">${msg}</div>
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+            <div class="t-desc" style="font-size: 13px; color: var(--cyan);">
+                <b>Doctor Recommendation & Medical Care:</b> Required genetic lab tests by doctors. Treatments include re-pigmentation therapies, laser examination, and narrow-band UVB phototherapy.
+            </div>
+        </div>`;
+    }
+    else if (disorderKey === 'cad') {
+        let risk = 0;
+        if (document.getElementById('cad_fam').value === 'yes') risk += 3;
+        if (document.getElementById('cad_smoke').value === 'yes') risk += 3;
+        if (document.getElementById('cad_alcohol').value === 'yes') risk += 2;
+        if (document.getElementById('cad_exercise').value === 'no') risk += 2;
+        if (document.getElementById('cad_diet').value === 'no') risk += 2;
+        if (document.getElementById('cad_obesity').value === 'yes') risk += 2;
+        if (document.getElementById('cad_stress').value === 'yes') risk += 2;
+        if (document.getElementById('cad_diabetes').value === 'yes') risk += 3;
+        if (document.getElementById('cad_bp').value === 'yes') risk += 3;
+        if (document.getElementById('cad_cholesterol').value === 'yes') risk += 3;
+
+        let resLevel = "", badge = "", predText = "", recList = [];
+
+        if (risk <= 4) {
+            resLevel = "LOW RISK (Score: " + risk + "/25)";
+            badge = "risk-low";
+            predText = "Low probability of Coronary Artery Disease.";
+            recList = ["Continue healthy diet", "Exercise regularly", "Avoid smoking and alcohol"];
+        } else if (risk <= 10) {
+            resLevel = "MODERATE RISK (Score: " + risk + "/25)";
+            badge = "risk-med";
+            predText = "Moderate probability of Coronary Artery Disease.";
+            recList = ["Improve lifestyle habits", "Monitor blood pressure and cholesterol", "Exercise at least 30 minutes daily", "Consult a doctor for regular check-ups"];
+        } else {
+            resLevel = "HIGH RISK (Score: " + risk + "/25)";
+            badge = "risk-high";
+            predText = "High probability of Coronary Artery Disease.";
+            recList = ["Consult a cardiologist immediately", "Stop smoking and limit alcohol", "Control diabetes, blood pressure, and cholesterol", "Follow a heart-healthy diet", "Exercise under medical supervision"];
+        }
+
+        let recsHTML = recList.map(r => `<li>${r}</li>`).join("");
+
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">Coronary Artery Disease Risk Analysis</div>
+            <span class="risk-badge ${badge}">${resLevel}</span>
+            <div class="t-desc" style="margin-top:10px;"><b>Prediction:</b> ${predText}</div>
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+            <div class="t-title" style="font-size: 15px;">Recommendations:</div>
+            <ul style="margin-left: 20px; color: var(--text-primary); font-size: 13px; line-height: 1.8;">
+                ${recsHTML}
+            </ul>
+        </div>`;
+    }
+    else if (disorderKey === 'angelman') {
+        const fatherAff = document.getElementById('as_father_affected').value === 'yes';
+        const physique = document.getElementById('as_physique').value === 'characteristic';
+
+        let res = "LOW RISK", badge = "risk-low", riskPercent = "1% (De Novo)", msg = "Standard population baseline risk.";
+
+        if (fatherAff) {
+            res = "HIGH RISK";
+            badge = "risk-high";
+            riskPercent = "3% to 5%";
+            msg = "Risk of having Angelman Syndrome is 3% to 5% by hereditary transmission from an affected father.";
+        }
+        if (physique) {
+            res = "HIGH RISK (Clinical Signs Present)";
+            badge = "risk-high";
+        }
+
+        riskHTML = `<div class="chromo-result-box">
+            <div class="t-title">Angelman Syndrome Risk Analysis</div>
+            <span class="risk-badge ${badge}">${res} (${riskPercent})</span>
+            <div class="t-desc" style="margin-top: 10px;">${msg}</div>
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+            <div class="t-desc" style="font-size: 13px; color: var(--yellow);">
+                <b>Clinical Note:</b> It is only detected after birth by the physique and developmental characteristics of the infant.
+            </div>
+        </div>`;
+    }
+    
+    rArea.innerHTML = riskHTML;
+    
+    // Treatment output
+    tArea.innerHTML = `
+        <div class="treatment-box">
+            <div class="t-title">Recommended Treatments & Management</div>
+            <div class="t-desc"><b>${disorders[disorderKey].name}:</b> ${treatments[disorderKey]}</div>
+        </div>`;
+        
+    renderGeneInfo(disorderKey, 'cGeneInfoRenderArea');
+        
+    // For step 4 in Chromosomal, just show an info message as there's no Mendelian flow chart
+    document.getElementById('step4RenderArea').innerHTML = `
+        <div style="text-align:center; padding: 40px; color: var(--text-secondary);">
+            Flow charts are primarily used for Mendelian inherited conditions. Chromosomal abnormalities typically occur randomly.
+        </div>
+    `;
+}
+
+function renderCharts(d) {
+    let fA, mA; // arrays of alleles for punnett
+    let fStat = fatherGenotype, mStat = motherGenotype;
+    
+    if (d.type === 'autosomal') {
+        fA = fStat === 'normal' ? [d.dom,d.dom] : fStat === 'carrier' ? [d.dom,d.rec] : [d.rec,d.rec];
+        mA = mStat === 'normal' ? [d.dom,d.dom] : mStat === 'carrier' ? [d.dom,d.rec] : [d.rec,d.rec];
+    } else if (d.type === 'autosomal_dominant') {
+        fA = fStat === 'normal' ? [d.rec,d.rec] : fStat === 'affected_het' ? [d.dom,d.rec] : [d.dom,d.dom];
+        mA = mStat === 'normal' ? [d.rec,d.rec] : mStat === 'affected_het' ? [d.dom,d.rec] : [d.dom,d.dom];
+    } else if (d.type === 'mitochondrial') {
+        fA = ['Mt', 'Mt']; // Father doesn't pass it, mock alleles
+        mA = mStat === 'normal' ? ['Mt', 'Mt'] : ['Mt*', 'Mt*'];
+    } else if (d.type === 'xlinked_dominant') {
+        fA = [ `X<sup>${fStat === 'normal' ? d.rec : d.dom}</sup>`, 'Y' ];
+        mA = [ `X<sup>${mStat === 'normal' ? d.rec : d.dom}</sup>`, `X<sup>${mStat === 'affected_hom' ? d.dom : d.rec}</sup>` ];
+    } else {
+        fA = [ `X<sup>${fStat === 'normal' ? d.dom : d.rec}</sup>`, 'Y' ];
+        mA = [ `X<sup>${d.dom}</sup>`, `X<sup>${mStat === 'normal' ? d.dom : d.rec}</sup>` ];
+        if (mStat === 'affected') mA[0] = `X<sup>${d.rec}</sup>`;
+    }
+    
+    let stats = { normal: 0, carrier: 0, affected: 0 };
+    if (d.type === 'autosomal_dominant' || d.type === 'xlinked_dominant') {
+        stats['affected_het'] = 0;
+        stats['affected_hom'] = 0;
+    }
+    
+    // Punnett 
+    let pGrid = `<div class="punnett-grid" style="grid-template-columns: repeat(3, 100px);">
+        <div class="punnett-cell punnett-corner">♂ ╲ ♀</div>
+        <div class="punnett-cell punnett-header">${mA[0]}</div>
+        <div class="punnett-cell punnett-header">${mA[1]}</div>`;
+        
+    const children = [];
+    
+    for (let i=0; i<2; i++) {
+        pGrid += `<div class="punnett-cell punnett-header">${fA[i]}</div>`;
+        for (let j=0; j<2; j++) {
+            let gStr = '', status = '', gender = '';
+            if (d.type === 'autosomal') {
+                const arr = [fA[i], mA[j]].sort((a,b) => a.localeCompare(b)); // dom first
+                gStr = arr.join('');
+                status = (gStr===d.dom+d.dom) ? 'normal' : (gStr===d.dom+d.rec) ? 'carrier' : 'affected';
+                gender = Math.random() > 0.5 ? 'male' : 'female'; // mock random for pedigree
+            } else if (d.type === 'autosomal_dominant') {
+                const arr = [fA[i], mA[j]].sort((a,b) => a.localeCompare(b)); // dom first
+                gStr = arr.join('');
+                status = (gStr===d.rec+d.rec) ? 'normal' : (gStr===d.dom+d.rec) ? 'affected_het' : 'affected_hom';
+                gender = Math.random() > 0.5 ? 'male' : 'female';
+            } else if (d.type === 'mitochondrial') {
+                gStr = mA[j];
+                status = gStr === 'Mt*' ? 'affected' : 'normal';
+                gender = Math.random() > 0.5 ? 'male' : 'female';
+            } else if (d.type === 'xlinked_dominant') {
+                if (fA[i] === 'Y') {
+                    gStr = mA[j] + 'Y';
+                    status = mA[j].includes(d.dom) ? 'affected' : 'normal';
+                    gender = 'male';
+                } else {
+                    const arr = [fA[i], mA[j]].sort().reverse(); 
+                    gStr = arr.join('');
+                    status = (arr[0].includes(d.dom) && arr[1].includes(d.dom)) ? 'affected_hom' : (arr[0].includes(d.dom) && arr[1].includes(d.rec)) ? 'affected_het' : 'normal';
+                    gender = 'female';
+                }
+            } else {
+                if (fA[i] === 'Y') {
+                    gStr = mA[j] + 'Y';
+                    status = mA[j].includes(d.rec) ? 'affected' : 'normal';
+                    gender = 'male';
+                } else {
+                    const arr = [fA[i], mA[j]].sort().reverse(); // N before rec
+                    gStr = arr.join('');
+                    status = (arr[0].includes(d.rec) && arr[1].includes(d.rec)) ? 'affected' : (arr[0].includes(d.dom) && arr[1].includes(d.dom)) ? 'normal' : 'carrier';
+                    gender = 'female';
+                }
+            }
+            
+            let displayStatus = status;
+            if (status === 'affected_het' || status === 'affected_hom') {
+                stats[status]++;
+                displayStatus = 'affected'; // For punnett color class
+            } else {
+                stats[status]++;
+            }
+            
+            const cls = displayStatus === 'normal' ? 'punnett-normal' : displayStatus === 'carrier' ? 'punnett-carrier' : 'punnett-affected';
+            let formattedPheno = status === 'affected_het' ? 'AFFECTED' : status === 'affected_hom' ? 'AFFECTED' : status.toUpperCase();
+            
+            pGrid += `<div class="punnett-cell ${cls}">${gStr}<div class="punnett-phenotype">${formattedPheno}</div></div>`;
+            children.push({gender, status, displayStatus, alleles: [fA[i], mA[j]]});
+        }
+    }
+    pGrid += `</div>`;
+    document.getElementById('punnettRenderArea').innerHTML = pGrid;
+
+    // Pedigree
+    const getCls = (g, s) => {
+        let mappedStatus = s === 'affected_het' || s === 'affected_hom' ? 'affected' : s;
+        return `ped-shape ${g} ${mappedStatus}`;
+    };
+    
+    let pedHTML = `
+        <div class="pedigree-chart">
+            <div class="ped-parents">
+                <div class="ped-figure">
+                    <div class="${getCls('male', fStat)}"></div>
+                    <div class="ped-label">♂ Father</div>
+                    <div class="ped-status">${fStat.replace('_het', '').replace('_hom', '').toUpperCase()}</div>
+                </div>
+                <div class="ped-marriage-line"></div>
+                <div class="ped-descent-line"></div>
+                <div class="ped-figure">
+                    <div class="${getCls('female', mStat)}"></div>
+                    <div class="ped-label">♀ Mother</div>
+                    <div class="ped-status">${mStat.replace('_het', '').replace('_hom', '').toUpperCase()}</div>
+                </div>
+            </div>
+            
+            <div class="ped-offspring-container">
+                <div class="ped-dist-line" style="width: 75%; left: 12.5%;"></div>
+                <div class="ped-offspring">`;
+                
+    children.forEach((c, idx) => {
+        pedHTML += `
+            <div class="ped-child">
+                <div class="${getCls(c.gender, c.status)}"></div>
+                <div class="ped-label">${c.gender==='male'?'♂ Son':'♀ Daughter'}</div>
+                <div class="ped-status">${c.status.replace('_het', '').replace('_hom', '').toUpperCase()}</div>
+            </div>`;
+    });
+    
+    pedHTML += `</div></div></div>`;
+    document.getElementById('pedigreeRenderArea').innerHTML = pedHTML;
+
+    // Treatments
+    document.getElementById('treatmentRenderArea').innerHTML = `
+        <div class="treatment-box">
+            <div class="t-title">Recommended Treatments & Management</div>
+            <div class="t-desc"><b>${d.name}:</b> ${treatments[selectedDisorder]}</div>
+        </div>
+    `;
+    
+    renderGeneInfo(selectedDisorder, 'geneInfoRenderArea');
+    
+    // Step 4: Flow Chart Figure Based
+    const getCol = (s) => s === 'normal' ? 'c-normal' : s === 'carrier' ? 'c-carrier' : 'c-affected';
+    const getTxt = (s) => s === 'normal' ? 'Unaffected' : s === 'carrier' ? 'Unaffected "Carrier"' : 'Affected';
+    
+    let childVisHTML = "";
+    // count chances out of 4 to display "X in 4 chance"
+    children.forEach(c => {
+        childVisHTML += `
+        <div class="vis-figure">
+            <div class="vis-alleles">
+                <div class="vis-allele">${c.alleles[0].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+                <div class="vis-allele">${c.alleles[1].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+            </div>
+            <div class="vis-icon ${getCol(c.displayStatus)}">${c.gender==='male'?'🧍‍♂️':'🧍‍♀️'}</div>
+            <div class="vis-label">${getTxt(c.displayStatus)}</div>
+            <div class="vis-status">${stats[c.status]} in 4 chance</div>
+        </div>
+        `;
+    });
+    
+    document.getElementById('step4RenderArea').innerHTML = `
+        <div class="visual-chart">
+            <div class="vis-parents">
+                <div class="vis-figure">
+                    <div class="vis-label">${getTxt(fStat.replace('_het', '').replace('_hom', ''))} Father</div>
+                    <div class="vis-icon ${getCol(fStat.replace('_het', 'affected').replace('_hom', 'affected'))}">🧍‍♂️</div>
+                    <div class="vis-alleles">
+                        <div class="vis-allele">${fA[0].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+                        <div class="vis-allele">${fA[1].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+                    </div>
+                </div>
+                <div class="vis-connector"></div>
+                <div class="vis-figure">
+                    <div class="vis-label">${getTxt(mStat.replace('_het', '').replace('_hom', ''))} Mother</div>
+                    <div class="vis-icon ${getCol(mStat.replace('_het', 'affected').replace('_hom', 'affected'))}">🧍‍♀️</div>
+                    <div class="vis-alleles">
+                        <div class="vis-allele">${mA[0].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+                        <div class="vis-allele">${mA[1].replace(/<\/?[^>]+(>|$)/g, "")}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="vis-children-container">
+                <div class="vis-children">
+                    ${childVisHTML}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.result-tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const activeBtn = document.querySelector(`.result-tab[onclick*="switchTab('${name}')"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+}
+
+function updateSteps(c) {
+    for (let i = 1; i <= 4; i++) {
+        const d = document.getElementById(`stepDot${i}`);
+        d.classList.remove('active', 'done');
+        if (i < c) d.classList.add('done'); else if (i === c) d.classList.add('active');
+    }
+    document.getElementById('stepLine1').classList.toggle('active', c >= 2);
+    document.getElementById('stepLine2').classList.toggle('active', c >= 3);
+    document.getElementById('stepLine3').classList.toggle('active', c >= 4);
+}
+
+function matchSymptoms() {
+    const selected = Array.from(document.querySelectorAll('.symptom-cb:checked')).map(cb => cb.value);
+    const resDiv = document.getElementById('symptomsMatchResults');
+    
+    if (selected.length === 0) {
+        resDiv.innerHTML = '<i>Select symptoms on the left to view matching disorders, affected disease images, and quick select options.</i>';
+        return;
+    }
+    
+    const disorderScores = {
+        vitiligo: { name: "Vitiligo", icon: "🦓", symptoms: ["depigmentation"], img: "assets/vitiligo_info.png" },
+        cad: { name: "Coronary Artery Disease", icon: "🫀", symptoms: ["chest_pain"], img: "assets/cad_info.png" },
+        sickle_cell: { name: "Sickle Cell Anemia", icon: "🩸", symptoms: ["joint_pain", "anemia"], img: null },
+        thalassemia: { name: "Thalassemia", icon: "🔬", symptoms: ["anemia"], img: null },
+        angelman: { name: "Angelman Syndrome", icon: "😃", symptoms: ["happy_seizures"], img: "assets/angelman_info.png" },
+        familial_alzheimer: { name: "Familial Alzheimer's", icon: "👴", symptoms: ["memory_loss"], img: "assets/alzheimer_info.png" },
+        color_blindness: { name: "Color Blindness", icon: "👁️", symptoms: ["color_blind"], img: null },
+        cri_du_chat: { name: "Cri du Chat Syndrome", icon: "👶", symptoms: ["cat_cry"], img: null },
+        huntington: { name: "Huntington's Disease", icon: "🧠", symptoms: ["chorea"], img: null },
+        marfan: { name: "Marfan Syndrome", icon: "🦴", symptoms: ["tall_limbs"], img: null },
+        klinefelter: { name: "Klinefelter Syndrome", icon: "👨‍⚕️", symptoms: ["tall_limbs"], img: null }
+    };
+    
+    let matches = [];
+    
+    for (let key in disorderScores) {
+        const d = disorderScores[key];
+        let hit = 0;
+        d.symptoms.forEach(s => { if (selected.includes(s)) hit++; });
+        if (hit > 0) {
+            let pct = Math.round((hit / d.symptoms.length) * 80 + 15);
+            if (pct > 98) pct = 98;
+            matches.push({ key, name: d.name, icon: d.icon, pct, img: d.img });
+        }
+    }
+    
+    matches.sort((a,b) => b.pct - a.pct);
+    
+    if (matches.length === 0) {
+        resDiv.innerHTML = '<div style="color: var(--yellow);">No exact genetic disorder match for this symptom combination.</div>';
+        return;
+    }
+    
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    matches.forEach(m => {
+        let imgTag = m.img ? `<img src="${m.img}" alt="${m.name}" style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-glass);">` : '';
+        html += `
+        <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-glass); gap: 12px;">
+            ${imgTag}
+            <div style="flex: 1;">
+                <div style="font-weight: 700; font-size: 13px; color: #fff;">${m.icon} ${m.name}</div>
+                <div style="font-weight: 800; font-size: 12px; color: var(--cyan);">${m.pct}% Symptom Match</div>
+            </div>
+            <button onclick="autoSelectDisorder('${m.key}')" style="background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); border: none; color: white; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 11px; cursor: pointer; transition: 0.2s;">
+                Select ➔
+            </button>
+        </div>`;
+    });
+    html += '</div>';
+    
+    resDiv.innerHTML = html;
+}
+
+function autoSelectDisorder(disorderKey) {
+    const btn = document.querySelector(`.disorder-btn[data-disorder="${disorderKey}"]`);
+    if (btn) {
+        selectDisorder(btn);
+    }
+}
+
+function resetAll() {
+    selectedDisorder = null; fatherGenotype = null; motherGenotype = null;
+    document.querySelectorAll('.disorder-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('step2Card').classList.remove('visible');
+    document.getElementById('predictWrapper').classList.remove('visible');
+    document.getElementById('resultsSection').classList.remove('visible');
+    document.getElementById('step4Section').classList.remove('visible');
+    updateSteps(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// USER SESSION & PROFILE MODAL FUNCTIONS
+function populateUserProfile() {
+    const session = JSON.parse(localStorage.getItem('geno_user_session') || 'null');
+    if (!session) return;
+
+    const initial = session.name ? session.name.charAt(0).toUpperCase() : 'U';
+    const navAvatar = document.getElementById('navAvatar');
+    const navUserName = document.getElementById('navUserName');
+    const profileAvatarLarge = document.getElementById('profileAvatarLarge');
+    const profileNameDisplay = document.getElementById('profileNameDisplay');
+    const profileEmailDisplay = document.getElementById('profileEmailDisplay');
+    const profileAgeDisplay = document.getElementById('profileAgeDisplay');
+    const profileGenderDisplay = document.getElementById('profileGenderDisplay');
+    const profileMobileDisplay = document.getElementById('profileMobileDisplay');
+    const profileDisorderDisplay = document.getElementById('profileDisorderDisplay');
+
+    if (navAvatar) navAvatar.textContent = initial;
+    if (navUserName) navUserName.textContent = session.name || 'User';
+    if (profileAvatarLarge) profileAvatarLarge.textContent = initial;
+    if (profileNameDisplay) profileNameDisplay.textContent = session.name || 'User Name';
+    if (profileEmailDisplay) profileEmailDisplay.textContent = session.email || 'N/A';
+    if (profileAgeDisplay) profileAgeDisplay.textContent = session.age ? `${session.age} yrs` : 'N/A';
+    if (profileGenderDisplay) profileGenderDisplay.textContent = session.gender || 'N/A';
+    if (profileMobileDisplay) profileMobileDisplay.textContent = session.mobile && session.mobile !== 'N/A' ? session.mobile : 'Not specified';
+    if (profileDisorderDisplay) profileDisorderDisplay.textContent = session.disorderName && session.disorderName !== 'None' ? session.disorderName : 'None specified';
+}
+
+function openProfileModal() {
+    populateUserProfile();
+    const overlay = document.getElementById('profileModalOverlay');
+    if (overlay) overlay.classList.add('active');
+}
+
+function closeProfileModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    const overlay = document.getElementById('profileModalOverlay');
+    if (overlay) overlay.classList.remove('active');
+}
+
+function handleLogout() {
+    localStorage.removeItem('geno_user_session');
+    window.location.href = 'login.html';
+}
+
+window.addEventListener('DOMContentLoaded', populateUserProfile);
+</script>
+</body>
+</html>

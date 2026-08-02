@@ -1,0 +1,390 @@
+import :("speech_recognition as sr")    # mircophone से सुनने के लिए
+import pyttsx3  # text to speech के लिए
+import os       # file or app launch/close के लिए
+import threading    # background में assistant चलाने और delay handling के लिए।
+import time
+import pygame   # sound effects play करने के लिए।
+import re       # regex search, HTTP requests, और web browser खोलने के लिए।
+import webbrowser # web browser खोलने के लिए।
+import requests
+import subprocess   # system commands के लिए
+from urllib.parse import quote_plus
+from flask import Flask, render_template, request, jsonify
+# import vlc  # VLC integration for local music control (DISABLED)
+
+# =================== CONFIGURATION =================
+app = Flask(_name_)
+SYSTEM32_TASKKILL = r"C:\Windows\System32\taskkill.exe"
+pygame.mixer.init()
+BASE_DIR = os.path.dirname(os.path.abspath(_file_))
+
+# ---------------- Quick Links ----------------
+QUICK_LINKS = {
+    "gmail": "https://mail.google.com",
+    "google": "https://www.google.com",
+    "facebook": "https://www.facebook.com",
+    "instagram": "https://www.instagram.com",
+    "github": "https://github.com"
+}
+
+# ---------------- Local Apps Paths ----------------
+APPS_PATHS = {
+    "whatsapp": r"C:\Users\dnyan\AppData\Local\WhatsApp\WhatsApp.exe",
+    "chrome": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    "notepad": "notepad.exe",
+    "calculator": "calc.exe",
+    "paint": "mspaint.exe",
+    "cmd": "cmd.exe"
+}
+
+
+# ---------------- Music Control ----------------
+music_player = None
+music_playing = False
+youtube_playing = False
+youtube_process = None
+assistant_running = True
+
+def play_tone(filename):
+    try:
+        path = os.path.join(BASE_DIR, "sounds", filename)
+        if os.path.exists(path):
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.05)
+    except Exception as e:
+        print("Sound error:", e)
+
+def speak(text):
+    play_tone("google_start.mp3")
+    print("Assistant:", text)
+    try:
+        engine = pyttsx3.init()
+        engine.setProperty("rate", 150)
+        voices = engine.getProperty("voices")
+        engine.setProperty("voice", voices[1].id if len(voices) > 1 else voices[0].id)
+        engine.say(text)
+        engine.runAndWait()
+        engine.stop()
+    except Exception as e:
+        print("Speech error:", e)
+    play_tone("google_end.mp3")
+
+def listen():
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Calibrating for background noise...")
+        r.adjust_for_ambient_noise(source, duration=1)
+        r.energy_threshold = 400
+        print("Listening...")
+        try:
+            audio = r.listen(source, phrase_time_limit=6)
+            query = r.recognize_google(audio, language="en-IN")
+            print("You said:", query)
+            return query.lower().strip()
+        except sr.UnknownValueError:
+            speak("Sorry, I couldn't understand.")
+            return ""
+        except sr.RequestError:
+            speak("Internet connection issue.")
+            return ""
+
+# ---------------- Keyword Normalization ----------------
+def normalize(text: str) -> str:
+    replacements = {
+        "khol": "open", "kholo": "open", "khole": "open", " kholo": " open",
+        "band karo": "close", "band": "close",
+        "chalu": "open", "chalu karo": "open",
+        "dhoond": "search", "dhundo": "search", "search karo": "search",
+        "map": "maps", "naksha": "maps",
+        "gana": "song", "gaana": "song", "music": "song",
+        "chaloo": "open", "chrome kholo": "open chrome",
+    }
+    t = " " + text + " "
+    for k, v in replacements.items():
+        t = t.replace(f" {k} ", f" {v} ")
+    return " ".join(t.split())
+
+def ensure_url(s: str) -> str:
+    s = s.strip()
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    if "." in s and " " not in s:
+        return "https://" + s
+    return s
+
+# ---------------- YouTube Direct Play ----------------
+def play_song_on_youtube(song_name):
+    
+    global youtube_playing, youtube_process
+    try:
+        search_url = f"https://www.youtube.com/results?search_query={quote_plus(song_name)}"
+        html = requests.get(search_url).text
+        video_ids = re.findall(r"watch\?v=(\S{11})", html)
+        if video_ids:
+            first_video_url = f"https://www.youtube.com/watch?v={video_ids[0]}"
+            youtube_process = subprocess.Popen([APPS_PATHS["chrome"], first_video_url])
+            youtube_playing = True
+            return True
+    except Exception as e:
+        print("Error playing song:", e)
+    return False
+
+# ---------------- Music Functions (VLC Disabled) ----------------
+def play_song(path):
+    global music_player, music_playing
+    if os.path.exists(path):
+        if music_player:
+            # music_player.stop()   # VLC disabled
+            pass
+        # music_player = vlc.MediaPlayer(path)   # VLC disabled
+        # music_player.play()                   # VLC disabled
+        music_playing = True
+    else:
+        speak("Song not found.")
+
+def pause_song():
+    global music_player, music_playing
+    if music_player and music_playing:
+        # music_player.pause()   # VLC disabled
+        music_playing = False
+
+def resume_song():
+    global music_player, music_playing
+    if music_player and not music_playing:
+        # music_player.play()   # VLC disabled
+        music_playing = True
+
+def stop_song():
+    global music_player, music_playing, youtube_playing, youtube_process
+    if music_player:
+        # music_player.stop()   # VLC disabled
+        music_playing = False
+    if youtube_playing and youtube_process:
+        youtube_process.terminate()
+        youtube_playing = False
+
+# ---------------- Action Executors ----------------
+def open_website(url_or_query: str):
+    url_or_query = url_or_query.strip()
+    if url_or_query in QUICK_LINKS:
+        webbrowser.open(QUICK_LINKS[url_or_query])
+        return True
+    if "." in url_or_query and " " not in url_or_query:
+        webbrowser.open(ensure_url(url_or_query))
+        return True
+    webbrowser.open(f"https://www.google.com/search?q={quote_plus(url_or_query)}")
+    return True
+
+def open_file_or_here(target: str):
+    path = target.strip().strip('"').strip("'")
+    if os.path.isabs(path) and os.path.exists(path):
+        os.startfile(path)
+        return True
+    else:
+        candidate = os.path.join(BASE_DIR, path)
+        if os.path.exists(candidate):
+            os.startfile(candidate)
+            return True
+    return False
+
+def open_app(app_name):
+    app = app_name.lower().strip()
+
+    # ---------------- YouTube ----------------
+    if "youtube" in app:
+        speak("Opening YouTube")
+        subprocess.Popen([APPS_PATHS["chrome"], "https://www.youtube.com"])
+        return
+
+    # ---------------- Mobile Apps (WEB VERSION SUPPORT) ----------------
+    mobile_apps_web = {
+        "whatsapp": "https://web.whatsapp.com",
+        "instagram": "https://www.instagram.com",
+        "facebook": "https://www.facebook.com",
+        "gmail": "https://mail.google.com",
+        "telegram": "https://web.telegram.org"
+    }
+
+    for key in mobile_apps_web:
+        if key in app:
+            speak(f"Opening {key} web version")
+            subprocess.Popen([APPS_PATHS["chrome"], mobile_apps_web[key]])
+            return
+
+    # ---------------- Installed Desktop Apps ----------------
+    for key in APPS_PATHS:
+        if key in app:
+            try:
+                os.startfile(APPS_PATHS[key])
+                speak(f"Opening {key}")
+                return
+            except Exception as e:
+                print(e)
+                speak(f"Error opening {key}")
+                return
+
+    # ---------------- Try system command ----------------
+    try:
+        os.system(f"start {app}")
+        speak(f"Opening {app}")
+        return
+    except:
+        pass
+
+    # ---------------- Final fallback (Google Chrome search) ----------------
+    speak(f"{app} not installed, searching on Google")
+    search_url = f"https://www.google.com/search?q={quote_plus(app)}"
+    subprocess.Popen([APPS_PATHS["chrome"], search_url])
+
+
+
+
+
+def close_app(app_name: str):
+    app_name = app_name.lower().strip()
+    exe_name = None
+
+    if app_name in APPS_PATHS:
+        exe_name = os.path.basename(APPS_PATHS[app_name])
+    elif app_name.endswith(".exe"):
+        exe_name = app_name
+
+    if app_name == "youtube":
+        exe_name = "chrome.exe"
+
+    if exe_name:
+        try:
+            subprocess.run([SYSTEM32_TASKKILL, "/F", "/IM", exe_name],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            speak(f"Closed {app_name}")
+            return
+        except Exception as e:
+            speak(f"Error closing {app_name}: {e}")
+            return
+
+    speak(f"I don't know how to close {app_name}")
+
+# ---------------- Command Processor ----------------
+def process_command(command):
+    t = command.lower().strip()
+
+    # -------- Song Commands --------
+    if t.startswith("play "):
+        song_name = t.replace("play", "").strip()
+        if song_name:
+            local_path = f"songs/{song_name}.mp3"
+            if os.path.exists(local_path):
+                play_song(local_path)
+                speak(f"Playing local song: {song_name}")
+            else:
+                speak(f"Playing on YouTube: {song_name}")
+                if not play_song_on_youtube(song_name):
+                    webbrowser.open(f"https://www.youtube.com/results?search_query={quote_plus(song_name)}")
+        else:
+            speak("Please tell me the song name.")
+        return True
+
+    if "pause the song" in t or "pause song" in t:
+        pause_song()
+        speak("Song paused")
+        return True
+
+    if "resume the song" in t or "resume song" in t:
+        resume_song()
+        speak("Song resumed")
+        return True
+
+    if "stop the song" in t or "stop song" in t:
+        stop_song()
+        speak("Song stopped")
+        return True
+
+    # -------- Other Commands (Apps, Search, Maps, etc.) --------
+    if t in ["exit", "quit", "stop assistant", "close assistant"]:
+        speak("bye bye seeyou!")
+        return False
+
+    if t.startswith("close "):
+        rest = t.replace("close", "").strip()
+        if rest:
+            close_app(rest)
+        else:
+            speak("Please tell me which app to close.")
+        return True
+
+    if t.startswith("open "):
+        rest = t.replace("open", "").strip()
+        if rest:
+            open_app(rest)
+        else:
+            speak("Please tell me the app name to open.")
+        return True
+
+    if t.startswith("search ") or t.startswith("google "):
+        q = t.split(" ", 1)[1] if " " in t else ""
+        if q:
+            speak(f"Searching for {q}")
+            open_website(q)
+        else:
+            speak("What should I search?")
+        return True
+
+    if "map" in t or "maps" in t:
+        q = t.replace("map", "").replace("maps", "").strip()
+        if q:
+            speak(f"Opening map for {q}")
+            webbrowser.open(f"https://www.google.com/maps/search/{quote_plus(q)}")
+        else:
+            speak("Please tell me the location.")
+        return True
+
+    speak(f"Searching for {command}")
+    open_website(command)
+    return True
+
+# ---------------- Main Loop ----------------
+def main():
+    global assistant_running
+    assistant_running = True
+    speak("Say 'hello ravan' to start.")
+
+    while assistant_running:
+        wake = listen()
+        if "hello ravan" in wake:
+            speak("Hi! How can I help you?")
+            break
+        time.sleep(0.3)
+
+    r = sr.Recognizer()
+    with sr.Microphone() as source:
+        r.adjust_for_ambient_noise(source, duration=1)
+        while assistant_running:
+            print("Listening for commands...")
+            try:
+                audio = r.listen(source, phrase_time_limit=7)
+                cmd = r.recognize_google(audio, language="en-IN")
+                print("You said:", cmd)
+                cmd = normalize(cmd.lower())
+                if not process_command(cmd.lower()):
+                    break
+            except sr.UnknownValueError:
+                speak("Sorry, I didn't catch that.")
+            except sr.RequestError:
+                speak("Internet problem.")
+            time.sleep(0.6)
+
+# ---------------- FLASK Routes ----------------
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/start-assistant")
+def start_assistant():
+    threading.Thread(target=main).start()
+    return 'Voice assistant started! Say "hello ravan".'
+
+# ---------------- Run ----------------
+if _name_ == "_main_":
+    app.run(host="0.0.0.0", port=5000, debug=True)
